@@ -4,7 +4,9 @@ namespace App\Controller;
 
 use App\Response\ApiResponse;
 use DateInterval;
+use DateTime;
 use Doctrine\Persistence\ManagerRegistry;
+use Exception;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -16,22 +18,21 @@ use App\Entity\Secret;
 class SecretController extends AbstractController
 {
     #[Route('/secret/{hash}', name: 'app_secret_get', methods: ['GET'])]
-    public function getSecret(Request $request, ManagerRegistry $doctrine, $hash): JsonResponse
+    public function getSecret(ManagerRegistry $doctrine, $hash): JsonResponse
     {
-        $repository = $doctrine->getRepository(Secret::class);
-        $secretModel = $repository->findOneBy(['hash' => $hash]);
-        if ($secretModel) {
-            $hash = $secretModel->getHash();
-            $secretText = $secretModel->getSecretText();
-            $createdAt = $secretModel->getCreatedAt();
+        $secretModel = $doctrine->getRepository(Secret::class)->findOneBy(['hash' => $hash]);
+        if (!$secretModel) {
+            throw $this->createNotFoundException('The secret does not exist');
+        } else {
             $expiresAt = $secretModel->getExpiresAt();
             $remainingViews = $secretModel->getRemainingViews();
             if ($remainingViews !== null || $expiresAt) {
                 $entityManager = $doctrine->getManager();
-                $now = new \DateTime("now");
-                if ($remainingViews === 0 || ($expiresAt ? $expiresAt->format('c') : 0) > $now->format('c')) {
+                $now = new DateTime("now");
+                if ($remainingViews === 0 || ($expiresAt ?? 0) > $now->format('c')) {
+                    //Ha többször nem lehet megtekinteni, vagy lejárt a TTL, akkor törlöm majd exceptiont dobok
                     $entityManager->remove($secretModel);
-                    $entityManager->flush();
+                    $entityManager->persist($secretModel);
                     throw $this->createNotFoundException('The secret does not exist');
                 }
                 $secretModel->setRemainingViews($remainingViews ? $remainingViews - 1 : null);
@@ -46,8 +47,6 @@ class SecretController extends AbstractController
                 "expiresAt" => $secretModel->getExpiresAt() ? $secretModel->getExpiresAt()->format('c') : $secretModel->getExpiresAt(),
                 "remainingViews" => $secretModel->getRemainingViews()
             ]);
-        } else {
-            throw $this->createNotFoundException('The secret does not exist');
         }
 
 
@@ -60,12 +59,12 @@ class SecretController extends AbstractController
 
         $expireAfter = $request->request->get('expireAfter');
         if ($expireAfter) {
-            $expireAfter = new \DateTime("now");
+            $expireAfter = new DateTime("now");
             try {
                 $expireAfter->add(new DateInterval('PT' . $request->request->get('expireAfter') . 'M'));
-            } catch (\Exception $e) {
-                $errors = "Exception happened while calculating the expire date.";
-            };
+            } catch (Exception $e) {
+                $errors = $e;
+            }
         }
 
         //dd(new \DateTime("now"));
@@ -73,7 +72,7 @@ class SecretController extends AbstractController
         $secretModel->setHash(password_hash($request->request->get('secret'), PASSWORD_DEFAULT));
         $secretModel->setSecretText($request->request->get('secret'));
         //encryptelni kéne
-        $secretModel->setCreatedAt(new \DateTime("now"));
+        $secretModel->setCreatedAt(new DateTime("now"));
         if ($expireAfter) {
             $secretModel->setExpiresAt($expireAfter);
         }
@@ -82,9 +81,9 @@ class SecretController extends AbstractController
             $secretModel->setRemainingViews($request->request->get('expireAfterViews'));
         }
 
-        $errors = $validator->validate($secretModel);
+        $errors = $errors ?? $validator->validate($secretModel);
         if (count($errors) > 0) {
-            return json([
+            return $this->json([
                 "errors" => $errors,
                 "message" => 'Validation error',]);
         }
