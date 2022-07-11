@@ -18,7 +18,7 @@ use App\Entity\Secret;
 class SecretController extends AbstractController
 {
     #[Route('/secret/{hash}', name: 'app_secret_get', methods: ['GET'])]
-    public function getSecret(Request $request,ManagerRegistry $doctrine, String $hash): JsonResponse
+    public function getSecret(Request $request, ManagerRegistry $doctrine, String $hash): JsonResponse
     {
         /** @var Secret $secret */
         $secret = $doctrine->getRepository(Secret::class)->findOneBy(['hash' => $hash]);
@@ -47,7 +47,7 @@ class SecretController extends AbstractController
             }
         }
 
-        /*return new ApiResponse($request,[
+        /*return new ApiResponse($request, [
             "hash" => $secret->getHash(),
             "secretText" => $secret->getSecretText(),
             "createdAt" => $secret->getCreatedAt()->format('c'),
@@ -81,7 +81,7 @@ class SecretController extends AbstractController
 
         //dd(new \DateTime("now"));
         $secretModel = new Secret();
-        $secretModel->setHash(hash('sha256', $request->request->get('secret')), PASSWORD_DEFAULT);
+        $secretModel->setHash(hash('sha256', $request->request->get('secret')));
         $secretModel->setSecretText($request->request->get('secret'));
         //encryptelni kéne
         $secretModel->setCreatedAt(new DateTime("now"));
@@ -105,7 +105,7 @@ class SecretController extends AbstractController
 
         $request->headers->get('accept');// ez alapján eldönteni hogy json vagy xml a respone
 
-        return $this->json($secret->json());
+        return $this->json($secretModel->json());
         /*
         return $this->json([
             "hash" => $secretModel->getHash(),
