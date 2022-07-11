@@ -49,12 +49,12 @@ class Secret
 
     public function getSecretText(): ?string
     {
-        return $this->secretText;
+        return openssl_decrypt($this->secretText, 'AES-128-CBC', $this->hash, 0, "1111111111111111");
     }
 
     public function setSecretText(string $secretText): self
     {
-        $this->secretText = $secretText;
+        $this->secretText = openssl_encrypt($secretText, 'AES-128-CBC', $this->hash, 0, "1111111111111111");
 
         return $this;
     }
@@ -104,7 +104,7 @@ class Secret
     {
         return [
             "hash" => $this->hash,
-            "secretText" => $this->secretText,
+            "secretText" => $this->getSecretText(),
             "createdAt" => $this->createdAt->format('c'),
             "expiresAt" => $this->expiresAt ? $this->expiresAt->format('c') : $this->expiresAt,
             "remainingViews" => $this->remainingViews
