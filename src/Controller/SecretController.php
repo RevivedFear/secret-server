@@ -18,38 +18,50 @@ use App\Entity\Secret;
 class SecretController extends AbstractController
 {
     #[Route('/secret/{hash}', name: 'app_secret_get', methods: ['GET'])]
-    public function getSecret(ManagerRegistry $doctrine, $hash): JsonResponse
+    public function getSecret(Request $request,ManagerRegistry $doctrine, String $hash): JsonResponse
     {
-        $secretModel = $doctrine->getRepository(Secret::class)->findOneBy(['hash' => $hash]);
-        if (!$secretModel) {
+        /** @var Secret $secret */
+        $secret = $doctrine->getRepository(Secret::class)->findOneBy(['hash' => $hash]);
+
+        if (!$secret) {
             throw $this->createNotFoundException('The secret does not exist');
-        } else {
-            $expiresAt = $secretModel->getExpiresAt();
-            $remainingViews = $secretModel->getRemainingViews();
-            if ($remainingViews !== null || $expiresAt) {
-                $entityManager = $doctrine->getManager();
-                $now = new DateTime("now");
-                if ($remainingViews === 0 || ($expiresAt ?? 0) > $now->format('c')) {
-                    //Ha többször nem lehet megtekinteni, vagy lejárt a TTL, akkor törlöm majd exceptiont dobok
-                    $entityManager->remove($secretModel);
-                    $entityManager->persist($secretModel);
-                    throw $this->createNotFoundException('The secret does not exist');
-                }
-                $secretModel->setRemainingViews($remainingViews ? $remainingViews - 1 : null);
+        }
+        $expiresAt = $secret->getExpiresAt();
+        $remainingViews = $secret->getRemainingViews();
+
+        if (null !== $remainingViews || $expiresAt) {
+            $entityManager = $doctrine->getManager();
+
+            // Töröljük, ha lejárt a TTL vagy elfogytak a megtekintések
+            if ($remainingViews === 0 || $secret->isExpired()) {
+                $entityManager->remove($secret);
+                //$entityManager->persist($secret);
+                $entityManager->flush();
+                throw $this->createNotFoundException('The secret does not exist');
+            }
+
+            if (null !== $remainingViews) {
+                $secret->setRemainingViews($remainingViews - 1);
+                $entityManager->persist($secret);
                 $entityManager->flush();
             }
-            //return  new ApiResponse($request,array($secretModel));
-
-            return $this->json([
-                "hash" => $secretModel->getHash(),
-                "secretText" => $secretModel->getSecretText(),
-                "createdAt" => $secretModel->getCreatedAt()->format('c'),
-                "expiresAt" => $secretModel->getExpiresAt() ? $secretModel->getExpiresAt()->format('c') : $secretModel->getExpiresAt(),
-                "remainingViews" => $secretModel->getRemainingViews()
-            ]);
         }
 
-
+        /*return new ApiResponse($request,[
+            "hash" => $secret->getHash(),
+            "secretText" => $secret->getSecretText(),
+            "createdAt" => $secret->getCreatedAt()->format('c'),
+            "expiresAt" => $secret->getExpiresAt() ? $secret->getExpiresAt()->format('c') : $secret->getExpiresAt(),
+            "remainingViews" => $secret->getRemainingViews()
+        ]);*/
+        return $this->json($secret->json());
+        /*return $this->json([
+            "hash" => $secret->getHash(),
+            "secretText" => $secret->getSecretText(),
+            "createdAt" => $secret->getCreatedAt()->format('c'),
+            "expiresAt" => $secret->getExpiresAt() ? $secret->getExpiresAt()->format('c') : $secret->getExpiresAt(),
+            "remainingViews" => $secret->getRemainingViews()
+        ]);*/
     }
 
     #[Route('/secret', name: 'app_secret_post', methods: ['POST'])]
@@ -69,7 +81,7 @@ class SecretController extends AbstractController
 
         //dd(new \DateTime("now"));
         $secretModel = new Secret();
-        $secretModel->setHash(password_hash($request->request->get('secret'), PASSWORD_DEFAULT));
+        $secretModel->setHash(hash('sha256', $request->request->get('secret')), PASSWORD_DEFAULT);
         $secretModel->setSecretText($request->request->get('secret'));
         //encryptelni kéne
         $secretModel->setCreatedAt(new DateTime("now"));
@@ -93,12 +105,14 @@ class SecretController extends AbstractController
 
         $request->headers->get('accept');// ez alapján eldönteni hogy json vagy xml a respone
 
+        return $this->json($secret->json());
+        /*
         return $this->json([
             "hash" => $secretModel->getHash(),
             "secretText" => $secretModel->getSecretText(),
             "createdAt" => $secretModel->getCreatedAt()->format('c'),
             "expiresAt" => $secretModel->getExpiresAt() ? $secretModel->getExpiresAt()->format('c') : $secretModel->getExpiresAt(),
             "remainingViews" => $secretModel->getRemainingViews()
-        ]);
+        ]);*/
     }
 }

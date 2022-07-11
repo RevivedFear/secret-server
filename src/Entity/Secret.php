@@ -3,6 +3,7 @@
 namespace App\Entity;
 
 use App\Repository\SecretRepository;
+use DateTime;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Validator\Constraints\Json;
 
@@ -94,14 +95,19 @@ class Secret
         return $this;
     }
 
-    /*public function json(): ?json
+    public function isExpired(): bool
     {
-        return $this->json([
+        return ($this->expiresAt && $this->expiresAt < new DateTime("now"));
+    }
+
+    public function json()
+    {
+        return [
             "hash" => $this->hash,
             "secretText" => $this->secretText,
             "createdAt" => $this->createdAt->format('c'),
             "expiresAt" => $this->expiresAt ? $this->expiresAt->format('c') : $this->expiresAt,
             "remainingViews" => $this->remainingViews
-        ]);
-    }*/
+        ];
+    }
 }
