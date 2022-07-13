@@ -10,9 +10,9 @@ class ApiResponse extends Response
     {
         parent::__construct($content, $status, []);
 
-        switch ($headers['Accept']?? 'empty') {
+        switch ($headers['Accept'] ?? 'empty') {
             case 'application/json':
-                $this ->setContent($content);
+                $this->setContent($content);
                 $this->headers->set('Content-Type', 'application/json');
                 break;
             case 'application/xml':
@@ -29,11 +29,11 @@ class ApiResponse extends Response
                 break;
             case '*/*':
                 //empty
-                $this ->setContent($content);
+                $this->setContent($content);
                 $this->headers->set('Content-Type', 'application/json');
                 break;
             case $headers['Accept']:
-                $this-> setContent('The '. $headers['Accept'] . ' return method is not yet implemented');
+                $this->setContent('The ' . $headers['Accept'] . ' return method is not yet implemented');
                 break;
 
         }
