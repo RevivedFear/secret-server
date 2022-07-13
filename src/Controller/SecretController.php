@@ -11,6 +11,7 @@ use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Annotation\Route;
+
 use Symfony\Component\Validator\Validator\ValidatorInterface;
 
 use App\Entity\Secret;
@@ -18,7 +19,7 @@ use App\Entity\Secret;
 class SecretController extends AbstractController
 {
     #[Route('/secret/{hash}', name: 'app_secret_get', methods: ['GET'])]
-    public function getSecret(Request $request, ManagerRegistry $doctrine, String $hash): JsonResponse
+    public function getSecret(Request $request, ManagerRegistry $doctrine, String $hash): ApiResponse
     {
         /** @var Secret $secret */
         $secret = $doctrine->getRepository(Secret::class)->findOneBy(['hash' => $hash]);
@@ -26,6 +27,7 @@ class SecretController extends AbstractController
         if (!$secret) {
             throw $this->createNotFoundException('The secret does not exist');
         }
+
         $expiresAt = $secret->getExpiresAt();
         $remainingViews = $secret->getRemainingViews();
 
@@ -35,7 +37,6 @@ class SecretController extends AbstractController
             // Töröljük, ha lejárt a TTL vagy elfogytak a megtekintések
             if ($remainingViews === 0 || $secret->isExpired()) {
                 $entityManager->remove($secret);
-                //$entityManager->persist($secret);
                 $entityManager->flush();
                 throw $this->createNotFoundException('The secret does not exist');
             }
@@ -47,21 +48,13 @@ class SecretController extends AbstractController
             }
         }
 
-        /*return new ApiResponse($request, [
+        return new ApiResponse(json_encode([
             "hash" => $secret->getHash(),
             "secretText" => $secret->getSecretText(),
             "createdAt" => $secret->getCreatedAt()->format('c'),
             "expiresAt" => $secret->getExpiresAt() ? $secret->getExpiresAt()->format('c') : $secret->getExpiresAt(),
             "remainingViews" => $secret->getRemainingViews()
-        ]);*/
-        return $this->json($secret->json());
-        /*return $this->json([
-            "hash" => $secret->getHash(),
-            "secretText" => $secret->getSecretText(),
-            "createdAt" => $secret->getCreatedAt()->format('c'),
-            "expiresAt" => $secret->getExpiresAt() ? $secret->getExpiresAt()->format('c') : $secret->getExpiresAt(),
-            "remainingViews" => $secret->getRemainingViews()
-        ]);*/
+        ]), 200, ['Accept' => $request->headers->get('Accept')]);
     }
 
     #[Route('/secret', name: 'app_secret_post', methods: ['POST'])]
