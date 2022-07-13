@@ -8,13 +8,10 @@ class ApiResponse extends Response
 {
     public function __construct(string $content = "", int $status = 200, array $headers = [])
     {
-        //return $content;
         parent::__construct($content, $status, []);
 
-
-        switch ($headers['Accept']?? 'default') {
+        switch ($headers['Accept']?? 'empty') {
             case 'application/json':
-                //return new JsonResponse($content);
                 $this ->setContent($content);
                 $this->headers->set('Content-Type', 'application/json');
                 break;
@@ -30,6 +27,15 @@ class ApiResponse extends Response
                 $xml .= '</Secret>';
                 $this->setContent($xml);
                 break;
+            case '*/*':
+                //empty
+                $this ->setContent($content);
+                $this->headers->set('Content-Type', 'application/json');
+                break;
+            case $headers['Accept']:
+                $this-> setContent('The '. $headers['Accept'] . ' return method is not yet implemented');
+                break;
+
         }
     }
 }
